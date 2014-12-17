@@ -1,0 +1,9 @@
+eclipse.preferences.version=1
+environment/project/com.android.toolchain.gcc.1757365408/GSTREAMER_ROOT/delimiter=\:
+environment/project/com.android.toolchain.gcc.1757365408/GSTREAMER_ROOT/operation=append
+environment/project/com.android.toolchain.gcc.1757365408/GSTREAMER_ROOT/value=/home/kiwi/AndroidDEV/gstreamer-sdk-1.0
+environment/project/com.android.toolchain.gcc.1757365408/GSTREAMER_SDK_ROOT_ANDROID/delimiter=\:
+environment/project/com.android.toolchain.gcc.1757365408/GSTREAMER_SDK_ROOT_ANDROID/operation=append
+environment/project/com.android.toolchain.gcc.1757365408/GSTREAMER_SDK_ROOT_ANDROID/value=/home/kiwi/AndroidDEV/gstreamer-sdk
+environment/project/com.android.toolchain.gcc.1757365408/append=true
+environment/project/com.android.toolchain.gcc.1757365408/appendContributed=true

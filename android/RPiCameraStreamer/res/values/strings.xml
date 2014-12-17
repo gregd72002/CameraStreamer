@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">RPiCameraStreamer</string>
+    <string name="bottom_button">Start</string>
+    <string name="dummy_content">DUMMY\nCONTENT</string>
+    <string name="top_button">Options</string>
+
+</resources>

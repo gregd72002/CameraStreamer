@@ -1,0 +1,11 @@
+This is a Eclipse workspace (version 4.4.1)
+
+RPiCameraStreamer was compiled using:
+- SDK: 5.0.1 (Android 21)
+- NDK: android-ndk-r9d
+- GStreamer: 1.4.4 (DEBUG)
+
+You will need > Android 9 (GINGERBREAD).
+
+Tested using Android 19.
+
