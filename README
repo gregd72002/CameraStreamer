@@ -12,4 +12,4 @@ TODO
 ==============
 - fix issue with stopping/starting (it should re-create the pipeline)
 - IOS support
-
+- RPi IP address auto discovery
