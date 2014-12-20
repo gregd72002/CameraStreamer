@@ -2,14 +2,21 @@ CameraStreamer
 ==============
 App to live stream RPi camera to Android and IOS
 
+REQUIREMENTS
+==============
+RPi with camera
+Android (API >= 9)
+
+
 RUN
 ==============
-on RPi copy camera_streamer.sh into /usr/local/bin/
-on RPi run camera_server; by default it will listen on port 1035
-on Android run RPiCameraStreamer app and adjust options (RPi IP address and port)
+On RPi install the following packages (raspbian): gstreamer1.0-tools, gstreamer1.0-plugins-bad, gstreamer1.0-plugins-good
 
+on RPi copy rpi/camera_streamer.sh into /usr/local/bin/
+on RPi (raspbian) run bin/camera_server; by default it will listen on port 1035
+on Android install and run bin/RPiCameraStreamer.apk app and adjust options (mainly RPi IP address and port)
 
 TODO
 ==============
 - IOS support
-
+- RPi IP address auto discovery
