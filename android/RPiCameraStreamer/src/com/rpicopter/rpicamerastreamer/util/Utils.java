@@ -116,7 +116,9 @@ public class Utils {
                     }
                 }
             }
-        } catch (Exception ex) { } // for now eat exceptions
+        } catch (Exception ex) {
+        	
+        } // for now eat exceptions
         return "";
     }
 

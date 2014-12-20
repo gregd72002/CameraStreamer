@@ -19,6 +19,7 @@ G_PASTE(g_io_module_, G_PASTE(name, _load_static)) ()
   GST_PLUGIN_STATIC_DECLARE(libav);
   GST_PLUGIN_STATIC_DECLARE(autodetect);
   GST_PLUGIN_STATIC_DECLARE(videoconvert);
+  GST_PLUGIN_STATIC_DECLARE(videoparsersbad);
   GST_PLUGIN_STATIC_DECLARE(coreelements);
   GST_PLUGIN_STATIC_DECLARE(adder);
   GST_PLUGIN_STATIC_DECLARE(app);
@@ -99,6 +100,7 @@ gst_android_register_static_plugins (void)
   GST_PLUGIN_STATIC_REGISTER(libav);
   GST_PLUGIN_STATIC_REGISTER(autodetect);
   GST_PLUGIN_STATIC_REGISTER(videoconvert);
+  GST_PLUGIN_STATIC_REGISTER(videoparsersbad);
   GST_PLUGIN_STATIC_REGISTER(coreelements);
   GST_PLUGIN_STATIC_REGISTER(adder);
   GST_PLUGIN_STATIC_REGISTER(app);

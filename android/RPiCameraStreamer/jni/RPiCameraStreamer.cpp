@@ -30,7 +30,6 @@ typedef struct _CustomData {
   GstElement *pipeline;   /* The running pipeline */
   GMainContext *context;  /* GLib context used to run the main loop */
   GMainLoop *main_loop;   /* GLib main loop */
-  gboolean initialized;   /* To avoid informing the UI multiple times about the initialization */
   GstElement *video_sink; /* The video sink element which receives XOverlay commands */
   ANativeWindow *native_window; /* The Android native window where video will be rendered */
 } CustomData;
@@ -41,6 +40,7 @@ static pthread_key_t current_jni_env;
 static JavaVM *java_vm;
 static jfieldID custom_data_field_id;
 static jmethodID set_message_method_id;
+static jmethodID set_error_method_id;
 static jmethodID notify_state_method_id;
 static jmethodID on_gstreamer_initialized_method_id;
 
@@ -59,12 +59,13 @@ static JNIEnv *attach_current_thread (void) {
   args.version = JNI_VERSION_1_4;
   args.name = NULL;
   args.group = NULL;
-
-  if ((*java_vm).AttachCurrentThread ( &env, &args) < 0) {
+  GST_DEBUG ("Attaching thread0");
+  if (!java_vm) GST_DEBUG ("java_vm not set");
+  if ((*java_vm).AttachCurrentThread (&env, &args) < 0) {
     GST_ERROR ("Failed to attach current thread");
     return NULL;
   }
-
+  GST_DEBUG ("Attaching thread1");
   return env;
 }
 
@@ -77,9 +78,11 @@ static void detach_current_thread (void *env) {
 /* Retrieve the JNI environment for this thread */
 static JNIEnv *get_jni_env (void) {
   JNIEnv *env;
-
+	GST_DEBUG ("Getting ENV");
   if ((env = pthread_getspecific (current_jni_env)) == NULL) {
+		GST_DEBUG ("ENV got??");
     env = attach_current_thread ();
+    GST_DEBUG ("Thread attached");
     pthread_setspecific (current_jni_env, env);
   }
 
@@ -99,10 +102,25 @@ static void set_ui_message (const gchar *message, CustomData *data) {
   (*env).DeleteLocalRef ( jmessage);
 }
 
+/* Change the content of the UI's TextView */
+static void set_error (const jint type, const gchar *message, CustomData *data) {
+  JNIEnv *env = get_jni_env ();
+  GST_DEBUG ("Setting error to: %s", message);
+  jstring jmessage = (*env).NewStringUTF( message);
+  (*env).CallVoidMethod ( data->app, set_error_method_id, type, message);
+  if ((*env).ExceptionCheck ()) {
+    GST_ERROR ("Failed to call Java method");
+    (*env).ExceptionClear ();
+  }
+  (*env).DeleteLocalRef ( jmessage);
+}
+
+
 static void notify_state (int state, CustomData *data) {
   JNIEnv *env = get_jni_env ();
   GST_DEBUG ("Notify state to: %i", state);
   jint s = state;
+
   (*env).CallVoidMethod ( data->app, notify_state_method_id, s);
   if ((*env).ExceptionCheck ()) {
     GST_ERROR ("Failed to call Java method notify_state");
@@ -120,9 +138,10 @@ static void error_cb (GstBus *bus, GstMessage *msg, CustomData *data) {
   message_string = g_strdup_printf ("Error received from element %s: %s", GST_OBJECT_NAME (msg->src), err->message);
   g_clear_error (&err);
   g_free (debug_info);
-  set_ui_message (message_string, data);
+  set_error(1,message_string, data);
   g_free (message_string);
   gst_element_set_state (data->pipeline, GST_STATE_NULL);
+  notify_state(0,data);
 }
 
 /* Notify UI about pipeline state changes */
@@ -150,8 +169,10 @@ static void state_changed_cb (GstBus *bus, GstMessage *msg, CustomData *data) {
 /* Check if all conditions are met to report GStreamer as initialized.
  * These conditions will change depending on the application */
 static void check_initialization_complete (CustomData *data) {
+
   JNIEnv *env = get_jni_env ();
-  if (!data->initialized && data->native_window && data->main_loop) {
+  GST_DEBUG ("ENV ok");
+  if (data->native_window && data->main_loop) {
     GST_DEBUG ("Initialization complete, notifying application. native_window:%p main_loop:%p", data->native_window, data->main_loop);
 
     /* The main loop is running and we received a native window, inform the sink about it */
@@ -162,7 +183,9 @@ static void check_initialization_complete (CustomData *data) {
       GST_ERROR ("Failed to call Java method");
       (*env).ExceptionClear ();
     }
-    data->initialized = TRUE;
+
+  } else {
+	  GST_DEBUG ("Initialization not complete");
   }
 }
 
@@ -183,7 +206,8 @@ static void *app_function (void *userdata) {
   /* Build pipeline */
 
   char pipeline[256];
-  sprintf(pipeline,"udpsrc address=%i.%i.%i.%i port=%i ! gdpdepay ! rtph264depay ! avdec_h264 ! videoconvert ! autovideosink sync=false\0",rpi_ip[0],rpi_ip[1],rpi_ip[2],rpi_ip[3],rpi_port);
+  //sprintf(pipeline,"tcpserversrc host=%i.%i.%i.%i port=%i ! gdpdepay ! rtph264depay ! avdec_h264 ! videoconvert ! autovideosink\0",rpi_ip[0],rpi_ip[1],rpi_ip[2],rpi_ip[3],rpi_port);
+  sprintf(pipeline,"udpsrc address=%i.%i.%i.%i port=%i ! h264parse ! avdec_h264 ! videoconvert ! autovideosink sync=false\0",rpi_ip[0],rpi_ip[1],rpi_ip[2],rpi_ip[3],rpi_port);
 
   GST_DEBUG("PIPELINE : %s",pipeline);
 
@@ -229,8 +253,11 @@ static void *app_function (void *userdata) {
   g_main_context_pop_thread_default(data->context);
   g_main_context_unref (data->context);
   gst_element_set_state (data->pipeline, GST_STATE_NULL);
+  notify_state(0,data);
   gst_object_unref (data->video_sink);
   gst_object_unref (data->pipeline);
+  data->pipeline = NULL;
+  data->video_sink = NULL;
 
   return NULL;
 }
@@ -238,23 +265,6 @@ static void *app_function (void *userdata) {
 /*
  * Java Bindings
  */
-
-/*
-static void gst_native_test (JNIEnv* env, jobject thiz, jbyteArray arr, jint port) {
-	unsigned char ip[4];
-	int i;
-	int p = port;
-	jsize len = (*env).GetArrayLength(arr);
-	jbyte *body = (*env).GetByteArrayElements(arr, 0);
-	for (i=0; i<len; i++)
-		ip[i] = body[i];
-	(*env).ReleaseByteArrayElements(arr, body, 0);
-
-	GST_DEBUG("GST_NATIVE_TEST");
-	GST_DEBUG("GST_NATIVE_TEST %i",p);
-	GST_DEBUG("GST_NATIVE_TEST : %i %i %i %i : %i",ip[0],ip[1],ip[2],ip[3],p);
-}
-*/
 
 static void gst_native_config (JNIEnv* env, jobject thiz, jbyteArray arr, jint port) {
 	int i;
@@ -275,17 +285,29 @@ static void gst_native_init (JNIEnv* env, jobject thiz) {
   GST_DEBUG ("Created CustomData at %p", data);
   data->app = (*env).NewGlobalRef ( thiz);
   GST_DEBUG ("Created GlobalRef for app object at %p", data->app);
-  pthread_create (&gst_app_thread, NULL, &app_function, data);
+}
+
+static void gst_native_start(JNIEnv* env, jobject thiz) {
+	  CustomData *data = GET_CUSTOM_DATA (env, thiz, custom_data_field_id);
+	  if (!data) return;
+	  pthread_create (&gst_app_thread, NULL, &app_function, data);
+}
+
+static void gst_native_stop(JNIEnv* env, jobject thiz) {
+	  CustomData *data = GET_CUSTOM_DATA (env, thiz, custom_data_field_id);
+	  if (!data) return;
+	  GST_DEBUG ("Quitting main loop...");
+	  g_main_loop_quit (data->main_loop);
+	  GST_DEBUG ("Waiting for thread to finish...");
+	  pthread_join (gst_app_thread, NULL);
 }
 
 /* Quit the main loop, remove the native thread and free resources */
 static void gst_native_finalize (JNIEnv* env, jobject thiz) {
+  gst_native_stop(env,thiz);
+
   CustomData *data = GET_CUSTOM_DATA (env, thiz, custom_data_field_id);
   if (!data) return;
-  GST_DEBUG ("Quitting main loop...");
-  g_main_loop_quit (data->main_loop);
-  GST_DEBUG ("Waiting for thread to finish...");
-  pthread_join (gst_app_thread, NULL);
   GST_DEBUG ("Deleting GlobalRef for app object at %p", data->app);
   (*env).DeleteGlobalRef ( data->app);
   GST_DEBUG ("Freeing CustomData at %p", data);
@@ -302,28 +324,38 @@ static void gst_native_play (JNIEnv* env, jobject thiz) {
   gst_element_set_state (data->pipeline, GST_STATE_PLAYING);
 }
 
-/* Set pipeline to PAUSED state */
-static void gst_native_pause (JNIEnv* env, jobject thiz) {
-  CustomData *data = GET_CUSTOM_DATA (env, thiz, custom_data_field_id);
-  if (!data) return;
-  GST_DEBUG ("Setting state to PAUSED");
-  gst_element_set_state (data->pipeline, GST_STATE_PAUSED);
-}
 
 /* Static class initializer: retrieve method and field IDs */
 static jboolean gst_native_class_init (JNIEnv* env, jclass klass) {
   custom_data_field_id = (*env).GetFieldID ( klass, "native_custom_data", "J");
   set_message_method_id = (*env).GetMethodID ( klass, "setMessage", "(Ljava/lang/String;)V");
+  set_error_method_id = (*env).GetMethodID ( klass, "setError", "(ILjava/lang/String;)V");
   notify_state_method_id = (*env).GetMethodID ( klass, "notifyState", "(I)V");
   on_gstreamer_initialized_method_id = (*env).GetMethodID ( klass, "onGStreamerInitialized", "()V");
 
-  if (!custom_data_field_id || !set_message_method_id || notify_state_method_id || !on_gstreamer_initialized_method_id) {
-    /* We emit this message through the Android log instead of the GStreamer log because the later
-     * has not been initialized yet.
-     */
-    __android_log_print (ANDROID_LOG_ERROR, "RPiCameraStreamer", "The calling class does not implement all necessary interface methods");
-    return JNI_FALSE;
+  if (!custom_data_field_id) {
+	  __android_log_print (ANDROID_LOG_ERROR, "RPiCameraStreamer", "The calling class does not implement native_custom_data");
+	  return JNI_FALSE;
   }
+  if (!set_message_method_id) {
+	  __android_log_print (ANDROID_LOG_ERROR, "RPiCameraStreamer", "The calling class does not implement setMessage");
+	  return JNI_FALSE;
+  }
+  if (!notify_state_method_id) {
+	  __android_log_print (ANDROID_LOG_ERROR, "RPiCameraStreamer", "The calling class does not implement notifyState");
+	  return JNI_FALSE;
+  }
+  if (!on_gstreamer_initialized_method_id) {
+	  __android_log_print (ANDROID_LOG_ERROR, "RPiCameraStreamer", "The calling class does not implement onGStreamerInitialized");
+	  return JNI_FALSE;
+  }
+  if (!set_error_method_id) {
+	  __android_log_print (ANDROID_LOG_ERROR, "RPiCameraStreamer", "The calling class does not implement setError");
+	  return JNI_FALSE;
+  }
+
+  __android_log_print (ANDROID_LOG_ERROR, "RPiCameraStreamer", "gst_native_class_init OK");
+
   return JNI_TRUE;
 }
 
@@ -334,6 +366,7 @@ static void gst_native_surface_init (JNIEnv *env, jobject thiz, jobject surface)
   GST_DEBUG ("Received surface %p (native window %p)", surface, new_native_window);
 
   if (data->native_window) {
+	GST_DEBUG ("Checking native window");
     ANativeWindow_release (data->native_window);
     if (data->native_window == new_native_window) {
       GST_DEBUG ("New native window is the same as the previous one %p", data->native_window);
@@ -344,12 +377,13 @@ static void gst_native_surface_init (JNIEnv *env, jobject thiz, jobject surface)
       return;
     } else {
       GST_DEBUG ("Released previous native window %p", data->native_window);
-      data->initialized = FALSE;
+      data->native_window = NULL;
     }
   }
+  GST_DEBUG ("Native window not set");
   data->native_window = new_native_window;
 
-  check_initialization_complete (data);
+  //check_initialization_complete (data);
 }
 
 static void gst_native_surface_finalize (JNIEnv *env, jobject thiz) {
@@ -359,25 +393,27 @@ static void gst_native_surface_finalize (JNIEnv *env, jobject thiz) {
 
   if (data->video_sink) {
     gst_video_overlay_set_window_handle (GST_VIDEO_OVERLAY (data->video_sink), (guintptr)NULL);
-    gst_element_set_state (data->pipeline, GST_STATE_READY);
+    if (data->pipeline) gst_element_set_state (data->pipeline, GST_STATE_READY);
   }
 
-  ANativeWindow_release (data->native_window);
+  if (data->native_window) ANativeWindow_release (data->native_window);
   data->native_window = NULL;
-  data->initialized = FALSE;
 }
 
 /* List of implemented native methods */
+
 static JNINativeMethod native_methods[] = {
   { "nativeInit", "()V", (void *) gst_native_init},
   { "nativeConfig", "([BI)V", (void *) gst_native_config},
   { "nativeFinalize", "()V", (void *) gst_native_finalize},
+  { "nativeStart", "()V", (void *) gst_native_start},
+  { "nativeStop", "()V", (void *) gst_native_stop},
   { "nativePlay", "()V", (void *) gst_native_play},
-  { "nativePause", "()V", (void *) gst_native_pause},
   { "nativeSurfaceInit", "(Ljava/lang/Object;)V", (void *) gst_native_surface_init},
   { "nativeSurfaceFinalize", "()V", (void *) gst_native_surface_finalize},
   { "nativeClassInit", "()Z", (void *) gst_native_class_init}
 };
+
 
 /* Library initializer */
 jint JNI_OnLoad(JavaVM *vm, void *reserved) {
@@ -393,6 +429,8 @@ jint JNI_OnLoad(JavaVM *vm, void *reserved) {
   (*env).RegisterNatives ( klass, native_methods, G_N_ELEMENTS(native_methods));
 
   pthread_key_create (&current_jni_env, detach_current_thread);
-
+  char *version_utf8 = gst_version_string();
+  __android_log_print (ANDROID_LOG_VERBOSE, "RPiCameraStreamer", "GSTREAMER VERSION: %s",version_utf8);
+  g_free (version_utf8);;
   return JNI_VERSION_1_4;
 }

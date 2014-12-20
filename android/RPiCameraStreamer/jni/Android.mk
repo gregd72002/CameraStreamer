@@ -17,7 +17,7 @@ GSTREAMER_ROOT        := $(GSTREAMER_ROOT_ANDROID)
 endif
 GSTREAMER_NDK_BUILD_PATH  := $(GSTREAMER_ROOT)/share/gst-android/ndk-build/
 include $(GSTREAMER_NDK_BUILD_PATH)/plugins.mk
-GSTREAMER_PLUGINS         := udp tcp gdp rtp libav autodetect videoconvert $(GSTREAMER_PLUGINS_CORE) $(GSTREAMER_PLUGINS_SYS) $(GSTREAMER_PLUGINS_EFFECTS)
+GSTREAMER_PLUGINS         := udp tcp gdp rtp libav autodetect videoconvert videoparsersbad $(GSTREAMER_PLUGINS_CORE) $(GSTREAMER_PLUGINS_SYS) $(GSTREAMER_PLUGINS_EFFECTS)
 
 GSTREAMER_EXTRA_DEPS      := gstreamer-video-1.0
 include $(GSTREAMER_NDK_BUILD_PATH)/gstreamer-1.0.mk

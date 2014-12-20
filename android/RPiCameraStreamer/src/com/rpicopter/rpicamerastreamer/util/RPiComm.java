@@ -8,6 +8,8 @@ import java.nio.ByteBuffer;
 import java.util.Timer;
 import java.util.TimerTask;
 
+import com.rpicopter.rpicamerastreamer.Callback;
+
 import android.util.Log;
 
 public class RPiComm {
@@ -18,8 +20,10 @@ public class RPiComm {
 	private byte [] my_ip;
 	private int my_port;
 	private DataOutputStream out;
+	private Callback context;
 	
-	public RPiComm(byte []rpi_ip, int rpi_port, byte []my_ip, int my_port) {
+	public RPiComm(Callback c, byte []rpi_ip, int rpi_port, byte []my_ip, int my_port) {
+		context = c;
 		try {
 			InetAddress rpi = InetAddress.getByAddress(rpi_ip);
 			addr = new InetSocketAddress(rpi,rpi_port);
@@ -29,6 +33,7 @@ public class RPiComm {
 		} catch (Exception ex) {
 			error = ex.toString();
 			status = -1;
+			context.notify(0, error);
 		}
 		
 		//Timer timer = new Timer();
@@ -57,6 +62,7 @@ public class RPiComm {
 		} catch (Exception ex) {
 			error = ex.toString();
 			status = -1;
+			context.notify(0, error);
 		}
 	}
 	

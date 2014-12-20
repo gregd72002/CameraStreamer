@@ -32,19 +32,22 @@ import android.widget.Toast;
  *
  * @see SystemUiHider
  */
-public class MainActivity extends Activity implements SurfaceHolder.Callback  {
+public class MainActivity extends Activity implements SurfaceHolder.Callback, Callback  {
+	private String message;
     private native void nativeInit();     // Initialize native code, build pipeline, etc
     private native void nativeConfig(byte[] ip, int port);
     private native void nativeFinalize(); // Destroy pipeline and shutdown native code
+    private native void nativeStart();     // Constructs PIPELINE
+    private native void nativeStop();     // Destroys PIPELINE
     private native void nativePlay();     // Set pipeline to PLAYING
     private native void nativePause();    // Set pipeline to PAUSED
-    private static native boolean nativeClassInit(); // Initialize native class: cache Method IDs for callbacks
     private native void nativeSurfaceInit(Object surface);
     private native void nativeSurfaceFinalize();
+    private native static boolean nativeClassInit(); // Initialize native class: cache Method IDs for callbacks
     private long native_custom_data;      // Native code will use this to keep private data
     
-    private boolean is_playing_desired;   // Whether the user asked to go to PLAYING
-    private boolean is_rpi_streaming;
+    private boolean pipeline_started;
+    private boolean is_running;
     
     private RPiComm rpi;
 	/**
@@ -78,8 +81,10 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback  {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		
-		is_rpi_streaming = false;
+
+		message = new String();
+		pipeline_started = false;
+		is_running = false;
 		
         // Initialize GStreamer and warn if it fails
         try {
@@ -101,14 +106,6 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback  {
         SurfaceView sv = (SurfaceView) this.findViewById(R.id.surface_video);
         SurfaceHolder sh = sv.getHolder();
         sh.addCallback(this);
-        
-        if (savedInstanceState != null) {
-            is_playing_desired = savedInstanceState.getBoolean("playing");
-            Log.i ("GStreamer", "Activity created. Saved state is playing:" + is_playing_desired);
-        } else {
-            is_playing_desired = true;
-            Log.i ("GStreamer", "Activity created. There is no saved state, playing: "+is_playing_desired);
-        }
 
 		// Set up an instance of SystemUiHider to control the system UI for
 		// this activity.
@@ -140,6 +137,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback  {
 		sv.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View view) {
+				clearMsg(100);
 				if (TOGGLE_ON_CLICK) {
 					mSystemUiHider.toggle();
 				} else {
@@ -157,7 +155,9 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback  {
 		SharedPreferences sharedPrefs = PreferenceManager.getDefaultSharedPreferences(this);
 		Editor editor = sharedPrefs.edit();
 		
-		editor.putString("my_ip", Utils.getIPAddress(true));
+		String my_ip = Utils.getIPAddress(true);
+		if (my_ip=="") my_ip = "127.0.0.1";
+		editor.putString("my_ip", my_ip);
 		
 		if (sharedPrefs.getString("my_port", "")=="")
 			editor.putString("my_port", "8888");
@@ -170,6 +170,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback  {
 		editor.commit();
 		
 		initializePlayer();
+
 		nativeInit();
 	}
 
@@ -184,55 +185,66 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback  {
 	}
 	
 	public void clickMsg(View v) {
-		Log.d("CLICK","Msg");
+		message = "";
+		_updateUI();
 	}
 	
 	public void clickOptions(View v) {
+		  message = "";
+		  stopStream();
 		  Intent i = new Intent(getApplicationContext(), SettingsActivity.class);
           startActivityForResult(i, 1);
 	}
 
+	private void startStream() {
+		rpi.start();
+		if (!pipeline_started) nativeStart();
+		is_running = true;
+	}
+	
+	private void stopStream() {
+		  if (pipeline_started) nativeStop();
+		  rpi.stop();
+		  is_running = false;
+	}
+	
 	public void clickStart(View v) {
+		message = "";
 		if (rpi == null) {
 			setMessage("Configuration error?");
 			return;
 		}
-		if (is_rpi_streaming) { //we are currently playing
-			rpi.stop();
-			//nativeClose();
-			is_rpi_streaming = false;
-		} else { //we are currently not playing
-			//nativeStart();
-			rpi.start();
-			is_rpi_streaming = true;
+		if (is_running) //we are currently playing
+			stopStream();
+		else { //we are currently not playing
+			startStream();
 		}
-		if (rpi.status == -1) {
-			setMessage("Error: "+rpi.error);
-			return;
+		_updateUI();
+	}
+	
+	private void setError(final int type, final String _message) {
+		if (type==1) {
+			pipeline_started = false;
+			stopStream();
 		}
-		refreshButton();
+    	message = _message;
+    	updateUI();	
 	}
 	
     // Called from native code. This sets the content of the TextView from the UI thread.
-    private void setMessage(final String message) {
-        final TextView tv = (TextView) this.findViewById(R.id.textview_message);
-        tv.setVisibility(View.VISIBLE);
-        runOnUiThread (new Runnable() {
-          public void run() {
-            tv.setText(message);
-          }
-        });
+    private void setMessage(final String _message) {
+    	message = _message;
+    	updateUI();
     }
     
-    private void notifyState(final int state) {
-    	Log.d("STATE","STATEA "+state);
-    	switch (state) {
-    		case 2: setMessage("PIPELINE READY"); is_rpi_streaming=false; break;
-    		case 3: setMessage("PIPELINE AWAITING CONTENT"); is_rpi_streaming=false; break; //PAUSED
-    		case 4: setMessage("PIPELINE ACTIVE"); is_rpi_streaming=true; break;
-    		default: setMessage("PIPELINE STATE: "+state); break;
+    private void notifyState(final int _state) {
+    	Log.d("STATE","STATE "+_state);
+    	switch (_state) {
+    		case 0: is_running = false; pipeline_started = false; break;
+    		case 1: is_running = false; break;
+    		case 4: pipeline_started = true;
     	}
-    	refreshButton();
+    	updateUI();
     }
     
     private void initializePlayer() {
@@ -258,9 +270,8 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback  {
     		return;
     	}
     	nativeConfig(my_ip,my_p);
-    	//Log.d("RPiComm","RPiComm0 "+rpi_ip[0]+" "+rpi_ip[1]+" "+rpi_ip[2]+" "+rpi_ip[3]);
     	if (rpi!=null) rpi.stop();
-    	rpi = new RPiComm(rpi_ip,rpi_p,my_ip,my_p);
+    	rpi = new RPiComm(this,rpi_ip,rpi_p,my_ip,my_p);
     }
         
     @Override
@@ -270,8 +281,8 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback  {
 
                     if(requestCode==1)
                     {
-                    	Log.d("Settings","Returned 1");
-                    	initializePlayer();       		
+                    	initializePlayer();
+                    	updateUI();
                     }
 
     }
@@ -307,38 +318,22 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback  {
 		mHideHandler.postDelayed(mHideRunnable, delayMillis);
 	}
 	
-	private void refreshButton() {
-        final Activity activity = this;
-        runOnUiThread(new Runnable() {
-            public void run() {
-            	Button mButton=(Button)activity.findViewById(R.id.bottom_button);
-            	//Log.d("REFR_BUTTON","REFR_BUTTON "+is_rpi_streaming);
-            	if (is_rpi_streaming)
-            		mButton.setText("Stop");
-            	else mButton.setText("Start");
-            }
-        });
-	}
     // Called from native code. Native code calls this once it has created its pipeline and
     // the main loop is running, so it is ready to accept commands.
     private void onGStreamerInitialized () {
-        Log.i ("GStreamer", "Gst initialized. Pipeline status: "+is_playing_desired);
-        if (is_playing_desired)
-        	nativePlay();
-        else nativePause();
-
-        refreshButton();
+        Log.i ("GStreamer", "onGStreamerInitialized");
+        nativePlay();
+        updateUI();
     }
     
-    protected void onSaveInstanceState (Bundle outState) {
-        Log.d ("GStreamer", "Saving state, playing:" + is_playing_desired);
-        outState.putBoolean("playing", is_playing_desired);
+    protected void onSaveInstanceState (Bundle outState) {    	
+        Log.d ("GStreamer", "onSaveInstanceState");
     }
     
     protected void onDestroy() {
+    	rpi._stop();
         nativeFinalize();
         Log.d("RPI","RPI onDestroy");
-        rpi._stop();
         super.onDestroy();
     }
     
@@ -348,8 +343,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback  {
         nativeClassInit();
     }
     
-    public void surfaceChanged(SurfaceHolder holder, int format, int width,
-            int height) {
+    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
         Log.d("GStreamer", "Surface changed to format " + format + " width "
                 + width + " height " + height);
         nativeSurfaceInit (holder.getSurface());
@@ -363,4 +357,45 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback  {
         Log.d("GStreamer", "Surface destroyed");
         nativeSurfaceFinalize ();
     }
+    
+    private void clearMsg(int delay) {
+    	final Handler handler = new Handler();
+    	handler.postDelayed(new Runnable() {
+    	  @Override
+    	  public void run() {
+    	    message = "";
+    	    updateUI();
+    	  }
+    	}, delay);
+    }
+    
+    private void _updateUI() {
+        final TextView tv = (TextView) this.findViewById(R.id.textview_message);
+        final Button mButton=(Button) this.findViewById(R.id.bottom_button);
+    	if (message.length()>0) {
+    		tv.setVisibility(View.VISIBLE);
+    		tv.setText(message);
+    		//clearMsg(3500);
+    	} else {
+    		tv.setVisibility(View.INVISIBLE);
+    	}
+      
+  		if (is_running)
+  			mButton.setText("Stop");
+  		else mButton.setText("Start");
+    }
+    
+    private void updateUI() {
+
+        runOnUiThread (new Runnable() {
+            public void run() { _updateUI(); }
+          });
+    }
+	@Override
+	public void notify(int status, String msg) {
+		message = msg;
+		updateUI();
+		Log.d("NOTIFY","NOTIFY "+msg);
+	}
 }
+

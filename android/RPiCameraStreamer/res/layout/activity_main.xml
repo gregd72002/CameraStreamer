@@ -79,7 +79,7 @@
             android:id="@+id/textview_message"
             android:layout_width="match_parent"
             android:layout_marginTop="50dp"
-            android:layout_height="30dp"
+            android:layout_height="40dp"
             android:layout_gravity="top"
             android:background="@color/white_overlay"
             android:gravity="center"

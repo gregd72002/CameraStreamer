@@ -11,6 +11,5 @@ on Android run RPiCameraStreamer app and adjust options (RPi IP address and port
 
 TODO
 ==============
-- fix issue with stopping/starting (it should re-create the pipeline)
 - IOS support
 
