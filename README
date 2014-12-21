@@ -18,5 +18,4 @@ on Android install and run bin/RPiCameraStreamer.apk app and adjust options (mai
 
 TODO
 ==============
-- IOS support
 - RPi IP address auto discovery
