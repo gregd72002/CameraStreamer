@@ -6,6 +6,7 @@ REQUIREMENTS
 ==============
 RPi with camera
 Android (API >= 9)
+For iOS: xcode
 
 
 RUN
