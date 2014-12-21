@@ -9,3 +9,7 @@ You will need > Android 9 (GINGERBREAD).
 
 Tested using Android 19.
 
+
+OTHER
+=====================
+Use OSX camera source: ./gst-launch-1.0 -v wrappercamerabinsrc ! video/x-raw, width=1280, height=720 ! x264enc byte-stream=true bitrate=300 tune=zerolatency ! rtph264pay ! gdppay ! udpsink host=192.168.1.18 port=8889
