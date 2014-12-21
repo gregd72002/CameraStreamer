@@ -1,0 +1,15 @@
+This is a XCode workspace (ver 6.1.1).
+
+RPiCameraStreamer was compiled using:
+- GStreamer: 1.4.5 (DEBUG)
+- iOS SDK 8.1
+
+
+Video stream is fully operational, but RPi camera has to be started manually.
+
+
+TODO
+===============
+- add preference panel
+- implement RPiComm class (same as Android project)
+

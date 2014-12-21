@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>IDESourceControlProjectFavoriteDictionaryKey</key>
+	<false/>
+	<key>IDESourceControlProjectIdentifier</key>
+	<string>41EE71DB-FD61-403C-A688-377679C58763</string>
+	<key>IDESourceControlProjectName</key>
+	<string>GStreamer iOS Tutorials</string>
+	<key>IDESourceControlProjectOriginsDictionary</key>
+	<dict>
+		<key>D1C8CF3E1DB7FE1B357FD59C515796BD7B0A9FAF</key>
+		<string>git://people.freedesktop.org/~slomo/gst-sdk-tutorials</string>
+	</dict>
+	<key>IDESourceControlProjectPath</key>
+	<string>gst-sdk/tutorials/xcode iOS/GStreamer iOS Tutorials.xcodeproj</string>
+	<key>IDESourceControlProjectRelativeInstallPathDictionary</key>
+	<dict>
+		<key>D1C8CF3E1DB7FE1B357FD59C515796BD7B0A9FAF</key>
+		<string>../../../../..</string>
+	</dict>
+	<key>IDESourceControlProjectURL</key>
+	<string>git://people.freedesktop.org/~slomo/gst-sdk-tutorials</string>
+	<key>IDESourceControlProjectVersion</key>
+	<integer>111</integer>
+	<key>IDESourceControlProjectWCCIdentifier</key>
+	<string>D1C8CF3E1DB7FE1B357FD59C515796BD7B0A9FAF</string>
+	<key>IDESourceControlProjectWCConfigurations</key>
+	<array>
+		<dict>
+			<key>IDESourceControlRepositoryExtensionIdentifierKey</key>
+			<string>public.vcs.git</string>
+			<key>IDESourceControlWCCIdentifierKey</key>
+			<string>D1C8CF3E1DB7FE1B357FD59C515796BD7B0A9FAF</string>
+			<key>IDESourceControlWCCName</key>
+			<string>gst-sdk-tutorials</string>
+		</dict>
+	</array>
+</dict>
+</plist>
